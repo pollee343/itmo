@@ -1,7 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
+
 #include "common.h"
 #include "ipc.h"
 #include "pa1.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -20,201 +22,432 @@ typedef struct
     size_t received[MAX_PROCESS_ID + 1];
 } ProcessContext;
 
-static int write_all(int fd, const char *text, size_t length)
+static int write_text(int fd, const char *text, size_t size)
 {
-    while (length > 0)
+    size_t written = 0;
+    while (written < size)
     {
-        ssize_t n = write(fd, text, length);
-        if (n < 0 && errno == EINTR)
+        ssize_t result;
+        result = write(fd, text + written, size - written);
+
+        if (result > 0)
+        {
+            written = written + (size_t)result;
+        }
+        else if (result < 0 && errno == EINTR)
+        {
             continue;
-        if (n <= 0)
+        }
+        else
+        {
             return -1;
-        text += n;
-        length -= (size_t)n;
+        }
+    }
+
+    return 0;
+}
+
+static int print_log(int file, const char *text, int size)
+{
+    if (size < 0)
+    {
+        return -1;
+    }
+    if (size >= MAX_PAYLOAD_LEN)
+    {
+        return -1;
+    }
+    if (write_text(STDOUT_FILENO, text, (size_t)size) != 0)
+    {
+        return -1;
+    }
+
+    if (write_text(file, text, (size_t)size) != 0)
+    {
+        return -1;
     }
     return 0;
 }
 
-static int log_event(int fd, const char *text, int length)
-{
-    if (length < 0 || length >= MAX_PAYLOAD_LEN)
-        return -1;
-    if (write_all(STDOUT_FILENO, text, (size_t)length) != 0)
-        return -1;
-    return write_all(fd, text, (size_t)length);
-}
-
-/* Keep only this process's incoming reads and outgoing writes. */
-static int close_pipes(ProcessContext *ctx, int all)
+static int close_extra_pipes(ProcessContext *context, int close_everything)
 {
     int result = 0;
-    for (int from = 0; from < ctx->process_count; ++from)
-        for (int to = 0; to < ctx->process_count; ++to)
-            for (int end = 0; end < 2; ++end)
+    int from;
+    int to;
+
+    for (from = 0; from < context->process_count; from++)
+    {
+        for (to = 0; to < context->process_count; to++)
+        {
+            int read_fd;
+            int write_fd;
+            read_fd = context->pipes[from][to][0];
+            write_fd = context->pipes[from][to][1];
+
+            if (read_fd >= 0)
             {
-                int *fd = &ctx->pipes[from][to][end];
-                int keep = end == 0 ? to == ctx->id : from == ctx->id;
-                if (*fd >= 0 && (all || !keep))
+                if (close_everything || to != context->id)
                 {
-                    if (close(*fd) != 0)
+                    if (close(read_fd) != 0)
+                    {
                         result = -1;
-                    *fd = -1;
+                    }
+                    context->pipes[from][to][0] = -1;
                 }
             }
+
+            if (write_fd >= 0)
+            {
+                if (close_everything || from != context->id)
+                {
+                    if (close(write_fd) != 0)
+                    {
+                        result = -1;
+                    }
+
+                    context->pipes[from][to][1] = -1;
+                }
+            }
+        }
+    }
+
     return result;
 }
-
-static int await_children(ProcessContext *ctx, MessageType type)
+static int clean_program(
+    ProcessContext *context,
+    int events_file,
+    int pipes_file,
+    pid_t children_pids[],
+    int created_children,
+    int result)
 {
-    for (local_id from = 1; from < ctx->process_count; ++from)
+    int i;
+    if (close_extra_pipes(context, 1) != 0)
     {
-        if (from == ctx->id)
+        result = -1;
+    }
+    if (close(events_file) != 0)
+    {
+        result = -1;
+    }
+    if (close(pipes_file) != 0)
+    {
+        result = -1;
+    }
+    if (context->id == PARENT_ID)
+    {
+        if (result != 0)
+        {
+            for (i = 0; i < created_children; i++)
+            {
+                kill(children_pids[i], SIGTERM);
+            }
+        }
+    }
+    if (result == 0)
+    {
+        return EXIT_SUCCESS;
+    }
+    return EXIT_FAILURE;
+}
+
+static int wait_for_messages(ProcessContext *context, MessageType type)
+{
+    local_id i;
+    for (i = 1; i < context->process_count; i++)
+    {
+        Message message;
+        if (i == context->id)
+        {
             continue;
-        Message msg;
-        if (receive(ctx, from, &msg) != 0 || msg.s_header.s_type != type)
+        }
+        if (receive(context, i, &message) != 0)
+        {
             return -1;
+        }
+        if (message.s_header.s_type != type)
+        {
+            return -1;
+        }
     }
     return 0;
 }
 
-static int child_run(ProcessContext *ctx, int events_fd)
+static int run_child(ProcessContext *context, int events_file)
 {
-    for (int phase = 0; phase < 2; ++phase)
+    Message message;
+    int text_size;
+    memset(&message, 0, sizeof(message));
+    text_size = snprintf(
+        message.s_payload,
+        sizeof(message.s_payload),
+        log_started_fmt,
+        (int)context->id,
+        (int)getpid(),
+        (int)getppid());
+
+    if (print_log(events_file, message.s_payload, text_size) != 0)
     {
-        Message msg;
-        memset(&msg, 0, sizeof(msg));
-        int length = phase == 0
-                         ? snprintf(msg.s_payload, sizeof(msg.s_payload), log_started_fmt,
-                                    (int)ctx->id, (int)getpid(), (int)getppid())
-                         : snprintf(msg.s_payload, sizeof(msg.s_payload), log_done_fmt,
-                                    (int)ctx->id);
-        if (log_event(events_fd, msg.s_payload, length) != 0)
-            return -1;
-        msg.s_header.s_magic = MESSAGE_MAGIC;
-        msg.s_header.s_payload_len = (uint16_t)length;
-        msg.s_header.s_type = phase == 0 ? STARTED : DONE;
-        msg.s_header.s_local_time = 0;
-        if (send_multicast(ctx, &msg) != 0 ||
-            await_children(ctx, phase == 0 ? STARTED : DONE) != 0)
-            return -1;
-        length = snprintf(msg.s_payload, sizeof(msg.s_payload),
-                          phase == 0 ? log_received_all_started_fmt
-                                     : log_received_all_done_fmt,
-                          (int)ctx->id);
-        if (log_event(events_fd, msg.s_payload, length) != 0)
-            return -1;
+        return -1;
+    }
+
+    message.s_header.s_magic = MESSAGE_MAGIC;
+    message.s_header.s_payload_len = (uint16_t)text_size;
+    message.s_header.s_type = STARTED;
+    message.s_header.s_local_time = 0;
+
+    if (send_multicast(context, &message) != 0)
+    {
+        return -1;
+    }
+
+    if (wait_for_messages(context, STARTED) != 0)
+    {
+        return -1;
+    }
+
+    text_size = snprintf(
+        message.s_payload,
+        sizeof(message.s_payload),
+        log_received_all_started_fmt,
+        (int)context->id);
+
+    if (print_log(events_file, message.s_payload, text_size) != 0)
+    {
+        return -1;
+    }
+
+    memset(&message, 0, sizeof(message));
+    text_size = snprintf(
+        message.s_payload,
+        sizeof(message.s_payload),
+        log_done_fmt,
+        (int)context->id);
+    if (print_log(events_file, message.s_payload, text_size) != 0)
+    {
+        return -1;
+    }
+    message.s_header.s_magic = MESSAGE_MAGIC;
+    message.s_header.s_payload_len = (uint16_t)text_size;
+    message.s_header.s_type = DONE;
+    message.s_header.s_local_time = 0;
+    if (send_multicast(context, &message) != 0)
+    {
+        return -1;
+    }
+    if (wait_for_messages(context, DONE) != 0)
+    {
+        return -1;
+    }
+    text_size = snprintf(
+        message.s_payload,
+        sizeof(message.s_payload),
+        log_received_all_done_fmt,
+        (int)context->id);
+
+    if (print_log(events_file, message.s_payload, text_size) != 0)
+    {
+        return -1;
     }
     return 0;
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc != 3 || strcmp(argv[1], "-p") != 0 || argv[2][0] == '\0')
-        return EXIT_FAILURE;
-    for (const char *p = argv[2]; *p; ++p)
-        if (*p < '0' || *p > '9')
-            return EXIT_FAILURE;
-    char *end;
-    errno = 0;
-    long children = strtol(argv[2], &end, 10);
-    if (errno != 0 || *end || children < 1 || children > 10)
-        return EXIT_FAILURE;
-    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
-        return EXIT_FAILURE;
+    ProcessContext context;
+    pid_t children_pids[MAX_PROCESS_ID];
+    int children_count;
+    int created_children;
+    int events_file;
+    int pipes_file;
+    int result;
+    int i;
+    int from;
+    int to;
 
-    ProcessContext ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.id = PARENT_ID;
-    ctx.process_count = (local_id)(children + 1);
-    for (int from = 0; from <= MAX_PROCESS_ID; ++from)
-        for (int to = 0; to <= MAX_PROCESS_ID; ++to)
-            ctx.pipes[from][to][0] = ctx.pipes[from][to][1] = -1;
-    int events_fd = open(events_log, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, 0644);
-    if (events_fd < 0)
-        return EXIT_FAILURE;
-    int pipes_fd = open(pipes_log, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (pipes_fd < 0)
+    if (argc != 3)
     {
-        close(events_fd);
         return EXIT_FAILURE;
     }
-    int result = 0;
-    pid_t pids[MAX_PROCESS_ID] = {0};
-    int created = 0;
-    for (int from = 0; from < ctx.process_count; ++from)
+
+    if (strcmp(argv[1], "-p") != 0)
     {
-        for (int to = 0; to < ctx.process_count; ++to)
+        return EXIT_FAILURE;
+    }
+
+    if (argv[2][0] == '\0')
+    {
+        return EXIT_FAILURE;
+    }
+
+    for (i = 0; argv[2][i] != '\0'; i++)
+    {
+        if (argv[2][i] < '0' || argv[2][i] > '9')
         {
+            return EXIT_FAILURE;
+        }
+    }
+
+    children_count = atoi(argv[2]);
+
+    if (children_count < 1 || children_count > 10)
+    {
+        return EXIT_FAILURE;
+    }
+
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+    {
+        return EXIT_FAILURE;
+    }
+
+    memset(&context, 0, sizeof(context));
+    memset(children_pids, 0, sizeof(children_pids));
+
+    context.id = PARENT_ID;
+    context.process_count = (local_id)(children_count + 1);
+
+    for (from = 0; from <= MAX_PROCESS_ID; from++)
+    {
+        for (to = 0; to <= MAX_PROCESS_ID; to++)
+        {
+            context.pipes[from][to][0] = -1;
+            context.pipes[from][to][1] = -1;
+        }
+    }
+
+    events_file = open(
+        events_log,
+        O_WRONLY | O_CREAT | O_TRUNC | O_APPEND,
+        0644);
+
+    if (events_file < 0)
+    {
+        return EXIT_FAILURE;
+    }
+
+    pipes_file = open(
+        pipes_log,
+        O_WRONLY | O_CREAT | O_TRUNC,
+        0644);
+
+    if (pipes_file < 0)
+    {
+        close(events_file);
+        return EXIT_FAILURE;
+    }
+    result = 0;
+    created_children = 0;
+    for (from = 0; from < context.process_count; from++)
+    {
+        for (to = 0; to < context.process_count; to++)
+        {
+            char text[128];
+            int text_size;
             if (from == to)
+            {
                 continue;
-            if (pipe(ctx.pipes[from][to]) != 0)
-            {
-                result = -1;
-                goto cleanup;
             }
-            char line[128];
-            int n = snprintf(line, sizeof(line), "pipe %d -> %d: read=%d write=%d\n",
-                             from, to, ctx.pipes[from][to][0], ctx.pipes[from][to][1]);
-            if (n < 0 || (size_t)n >= sizeof(line) ||
-                write_all(pipes_fd, line, (size_t)n) != 0)
+            if (pipe(context.pipes[from][to]) != 0)
+            {
+                return clean_program(
+                    &context,
+                    events_file,
+                    pipes_file,
+                    children_pids,
+                    created_children,
+                    -1);
+            }
+            text_size = snprintf(
+                text,
+                sizeof(text),
+                "pipe %d -> %d: read=%d write=%d\n",
+                from,
+                to,
+                context.pipes[from][to][0],
+                context.pipes[from][to][1]);
+
+            if (text_size < 0)
             {
                 result = -1;
-                goto cleanup;
+                return clean_program(
+                    &context,
+                    events_file,
+                    pipes_file,
+                    children_pids,
+                    created_children,
+                    -1);
+            }
+            if ((size_t)text_size >= sizeof(text))
+            {
+                return clean_program(
+                    &context,
+                    events_file,
+                    pipes_file,
+                    children_pids,
+                    created_children,
+                    -1);
+            }
+            if (write_text(pipes_file, text, (size_t)text_size) != 0)
+            {
+                return clean_program(
+                    &context,
+                    events_file,
+                    pipes_file,
+                    children_pids,
+                    created_children,
+                    -1);
             }
         }
     }
-    for (local_id id = 1; id < ctx.process_count; ++id)
+    for (i = 1; i < context.process_count; i++)
     {
-        pid_t pid = fork();
+        pid_t pid;
+        pid = fork();
         if (pid < 0)
         {
-            result = -1;
-            goto cleanup;
+            return clean_program(
+                &context,
+                events_file,
+                pipes_file,
+                children_pids,
+                created_children,
+                -1);
         }
         if (pid == 0)
         {
-            ctx.id = id;
+            context.id = (local_id)i;
             break;
         }
-        pids[created++] = pid;
-    }
-    if (close_pipes(&ctx, 0) != 0)
-        result = -1;
-    if (result == 0)
-    {
-        if (ctx.id == PARENT_ID)
-        {
-            if (await_children(&ctx, STARTED) != 0 ||
-                await_children(&ctx, DONE) != 0)
-                result = -1;
-        }
-        else
-            result = child_run(&ctx, events_fd);
+        children_pids[created_children] = pid;
+        created_children++;
     }
 
-cleanup:
-    if (close_pipes(&ctx, 1) != 0)
-        result = -1;
-    if (close(events_fd) != 0)
-        result = -1;
-    if (close(pipes_fd) != 0)
-        result = -1;
-    if (ctx.id == PARENT_ID)
+    if (close_extra_pipes(&context, 0) != 0)
     {
-        if (result != 0)
-            for (int i = 0; i < created; ++i)
-                kill(pids[i], SIGTERM);
-        for (int i = 0; i < created; ++i)
+        result = -1;
+    }
+    if (result == 0)
+    {
+        if (context.id == PARENT_ID)
         {
-            int status;
-            pid_t waited;
-            do
+            if (wait_for_messages(&context, STARTED) != 0)
             {
-                waited = waitpid(pids[i], &status, 0);
-            } while (waited < 0 && errno == EINTR);
-            if (waited < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
                 result = -1;
+            }
+            if (result == 0)
+            {
+                if (wait_for_messages(&context, DONE) != 0)
+                {
+                    result = -1;
+                }
+            }
+        }
+        else
+        {
+            if (run_child(&context, events_file) != 0)
+            {
+                result = -1;
+            }
         }
     }
-    return result == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
