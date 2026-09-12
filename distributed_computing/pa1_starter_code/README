@@ -1,1 +1,5 @@
 clang -std=c99 -Wall -pedantic main.c ipc.c -o pa1     
+./pa1 -p 10
+echo $?
+wc -l events.log
+wc -l pipes.log
