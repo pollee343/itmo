@@ -49,11 +49,7 @@ static int write_text(int fd, const char *text, size_t size)
 
 static int print_log(int file, const char *text, int size)
 {
-    if (size < 0)
-    {
-        return -1;
-    }
-    if (size >= MAX_PAYLOAD_LEN)
+    if (size < 0 || size >= MAX_PAYLOAD_LEN)
     {
         return -1;
     }
@@ -265,17 +261,7 @@ int main(int argc, char *argv[])
     int from;
     int to;
 
-    if (argc != 3)
-    {
-        return EXIT_FAILURE;
-    }
-
-    if (strcmp(argv[1], "-p") != 0)
-    {
-        return EXIT_FAILURE;
-    }
-
-    if (argv[2][0] == '\0')
+    if (argc != 3 || strcmp(argv[1], "-p") != 0 || argv[2][0] == '\0')
     {
         return EXIT_FAILURE;
     }
@@ -366,19 +352,9 @@ int main(int argc, char *argv[])
                 context.pipes[from][to][0],
                 context.pipes[from][to][1]);
 
-            if (text_size < 0)
+            if (text_size < 0 || (size_t)text_size >= sizeof(text))
             {
                 result = -1;
-                return clean_program(
-                    &context,
-                    events_file,
-                    pipes_file,
-                    children_pids,
-                    created_children,
-                    -1);
-            }
-            if ((size_t)text_size >= sizeof(text))
-            {
                 return clean_program(
                     &context,
                     events_file,

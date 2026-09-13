@@ -75,8 +75,6 @@ int send_multicast(void *self, const Message *msg)
     return 0;
 }
 
-/* 0: complete, 1: temporarily empty, 2: clean EOF, -1: error.
- * Keep incomplete frames per sender, also when alternating receive APIs. */
 static int try_receive(ProcessContext *ctx, local_id from, Message *msg)
 {
     int fd = ctx->pipes[from][ctx->id][0];
