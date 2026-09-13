@@ -417,6 +417,13 @@ int main(int argc, char *argv[])
                     result = -1;
                 }
             }
+            for (i = 0; i < created_children; i++)
+            {
+                if (waitpid(children_pids[i], NULL, 0) < 0)
+                {
+                    result = -1;
+                }
+            }
         }
         else
         {
@@ -426,4 +433,11 @@ int main(int argc, char *argv[])
             }
         }
     }
+    return clean_program(
+        &context,
+        events_file,
+        pipes_file,
+        children_pids,
+        created_children,
+        result);
 }
