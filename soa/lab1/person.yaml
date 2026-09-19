@@ -1,0 +1,670 @@
+openapi: 3.0.3
+info:
+  title: Person API
+  version: 1.0.0
+  description: 'REST API для управления коллекцией объектов Person.
+
+
+    Сервис предоставляет CRUD-операции, фильтрацию, сортировку, пагинацию и специальные операции над коллекцией Person.'
+servers:
+  - url: https://helios.cs.ifmo.ru/408951/api
+    description: Helios server
+  - url: http://localhost:8080
+    description: Local server
+paths:
+  /persons:
+    get:
+      summary: Получить список людей
+      description: 'Возвращает список объектов Person.
+
+
+        Операция поддерживает:
+
+        - фильтрацию по любой комбинации полей Person;
+
+        - сортировку по одному или нескольким полям;
+
+        - порционную выдачу результатов с помощью параметров limit и offset.
+
+
+        Если параметр фильтра не указан, соответствующее поле не участвует в фильтрации.
+
+
+        Параметр limit задаёт максимальное количество возвращаемых объектов, а offset — смещение, начиная с которого нужно получать записи.'
+      operationId: getPersons
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/FilterId'
+        - $ref: '#/components/parameters/FilterName'
+        - $ref: '#/components/parameters/FilterCoordinatesX'
+        - $ref: '#/components/parameters/FilterCoordinatesY'
+        - $ref: '#/components/parameters/FilterCreationDate'
+        - $ref: '#/components/parameters/FilterHeight'
+        - $ref: '#/components/parameters/FilterBirthday'
+        - $ref: '#/components/parameters/FilterWeight'
+        - $ref: '#/components/parameters/FilterNationality'
+        - $ref: '#/components/parameters/FilterHairColor'
+        - $ref: '#/components/parameters/FilterEyeColor'
+        - $ref: '#/components/parameters/FilterLocationX'
+        - $ref: '#/components/parameters/FilterLocationY'
+        - $ref: '#/components/parameters/FilterLocationName'
+      responses:
+        '200':
+          description: Список объектов Person успешно получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonListResponse'
+              examples:
+                example:
+                  value:
+                    items:
+                      - id: 1
+                        name: Andrey
+                        coordinates:
+                          x: 10.5
+                          y: 20
+                        creationDate: '2026-09-19T19:30:00+03:00'
+                        height: 178
+                        birthday: '2006-01-01'
+                        weight: 83
+                        nationality: SPAIN
+                        hairColor: BLACK
+                        eyeColor: BLUE
+                        location:
+                          x: 10
+                          y: 20
+                          name: Saint Petersburg
+                    nextoffset: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Добавить нового человека
+      description: 'Создаёт новый объект Person в коллекции.
+
+
+        Поля id и creationDate генерируются сервером автоматически и не должны передаваться клиентом.'
+      operationId: createPerson
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonInput'
+            examples:
+              example:
+                value:
+                  name: Andrey
+                  coordinates:
+                    x: 10.5
+                    y: 20
+                  height: 178
+                  birthday: '2006-01-01'
+                  weight: 83
+                  nationality: SPAIN
+                  hairColor: BLACK
+                  eyeColor: BLUE
+                  location:
+                    x: 10
+                    y: 20
+                    name: Saint Petersburg
+      responses:
+        '201':
+          description: Объект Person успешно создан
+          headers:
+            Location:
+              description: URL созданного ресурса
+              schema:
+                type: string
+                example: /persons/1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /persons/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    get:
+      summary: Получить человека по идентификатору
+      description: Возвращает объект Person с указанным уникальным идентификатором.
+      operationId: getPersonById
+      responses:
+        '200':
+          description: Объект Person найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      summary: Обновить человека
+      description: 'Полностью обновляет изменяемые поля объекта Person с указанным id.
+
+        Поля id и creationDate изменять нельзя.'
+      operationId: updatePerson
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonInput'
+      responses:
+        '200':
+          description: Объект Person успешно обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Удалить человека
+      description: Удаляет объект Person с указанным id из коллекции.
+      operationId: deletePerson
+      responses:
+        '204':
+          description: Объект Person успешно удалён
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /persons/max-weight:
+    get:
+      summary: Получить человека с максимальным весом
+      description: Возвращает один произвольный объект Person, значение поля weight которого является максимальным среди всех объектов коллекции.
+
+        Объекты, у которых weight равен null, не участвуют в сравнении.'
+      operationId: getPersonWithMaxWeight
+      responses:
+        '200':
+          description: Объект Person с максимальным значением weight найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '404':
+          description: В коллекции отсутствуют объекты с заданным полем weight
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /persons/count-by-birthday:
+    get:
+      summary: Посчитать людей с birthday больше заданного
+      description: Возвращает количество объектов Person, у которых значение birthday позже переданного значения. Объекты с birthday = null не учитываются.
+      operationId: countPersonsByBirthdayGreaterThan
+      parameters:
+        - name: birthday
+          in: query
+          required: true
+          description: Граничное значение даты рождения
+          schema:
+            type: string
+            format: date
+          example: '2000-01-01'
+      responses:
+        '200':
+          description: Количество объектов успешно вычислено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResponse'
+              example:
+                count: 12
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /persons/search-by-name:
+    get:
+      summary: Найти людей по подстроке имени
+      description: Возвращает массив объектов Person, значение поля name которых содержит переданную подстроку.
+      operationId: findPersonsByNameSubstring
+      parameters:
+        - name: substring
+          in: query
+          required: true
+          description: Подстрока, которая должна содержаться в поле name
+          schema:
+            type: string
+            minLength: 1
+          example: andr
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Результат поиска успешно получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonListResponse'
+              example:
+                items:
+                  - id: 1
+                    name: Andrey
+                    coordinates:
+                      x: 10.5
+                      y: 20
+                    creationDate: '2026-09-19T19:30:00+03:00'
+                    height: 178
+                    birthday: '2006-01-01'
+                    weight: 83
+                    nationality: SPAIN
+                    hairColor: BLACK
+                    eyeColor: BLUE
+                    location:
+                      x: 10
+                      y: 20
+                      name: Saint Petersburg
+                nextoffset: 20
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    PersonId:
+      name: id
+      in: path
+      required: true
+      description: Уникальный идентификатор объекта Person
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Максимальное количество объектов, которое нужно вернуть за один запрос
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Смещение от начала выборки, начиная с которого нужно получать записи
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Sort:
+      name: sort
+      in: query
+      required: false
+      description: 'Сортировка по одному или нескольким полям.
+
+        Каждый элемент задаётся в формате field,direction, где direction равен asc или desc.
+
+
+        Параметр можно передавать несколько раз, например:?sort=name,asc&sort=height,desc'
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          pattern: ^(id|name|coordinatesX|coordinatesY|creationDate|height|birthday|weight|nationality|hairColor|eyeColor|locationX|locationY|locationName),(asc|desc)$
+      example:
+        - name,asc
+        - height,desc
+    FilterId:
+      name: id
+      in: query
+      required: false
+      description: Фильтр по id
+      schema:
+        type: integer
+        minimum: 1
+    FilterName:
+      name: name
+      in: query
+      required: false
+      description: Фильтр по точному значению name
+      schema:
+        type: string
+        minLength: 1
+    FilterCoordinatesX:
+      name: coordinatesX
+      in: query
+      required: false
+      description: Фильтр по coordinates.x
+      schema:
+        type: number
+    FilterCoordinatesY:
+      name: coordinatesY
+      in: query
+      required: false
+      description: Фильтр по coordinates.y
+      schema:
+        type: integer
+    FilterCreationDate:
+      name: creationDate
+      in: query
+      required: false
+      description: Фильтр по creationDate
+      schema:
+        type: string
+        format: date-time
+    FilterHeight:
+      name: height
+      in: query
+      required: false
+      description: Фильтр по height
+      schema:
+        type: integer
+        minimum: 1
+    FilterBirthday:
+      name: birthday
+      in: query
+      required: false
+      description: Фильтр по дате рождения
+      schema:
+        type: string
+        format: date
+        nullable: true
+    FilterWeight:
+      name: weight
+      in: query
+      required: false
+      description: Фильтр по weight
+      schema:
+        type: integer
+        minimum: 1
+        nullable: true
+    FilterNationality:
+      name: nationality
+      in: query
+      required: false
+      description: Фильтр по nationality
+      schema:
+        $ref: '#/components/schemas/Country'
+    FilterHairColor:
+      name: hairColor
+      in: query
+      required: false
+      description: Фильтр по hairColor
+      schema:
+        $ref: '#/components/schemas/Color'
+    FilterEyeColor:
+      name: eyeColor
+      in: query
+      required: false
+      description: Фильтр по eyeColor
+      schema:
+        $ref: '#/components/schemas/Color'
+    FilterLocationX:
+      name: locationX
+      in: query
+      required: false
+      description: Фильтр по location.x
+      schema:
+        type: integer
+    FilterLocationY:
+      name: locationY
+      in: query
+      required: false
+      description: Фильтр по location.y
+      schema:
+        type: integer
+    FilterLocationName:
+      name: locationName
+      in: query
+      required: false
+      description: Фильтр по location.name
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            status: 400
+            error: Bad Request
+            message: height must be greater than 0
+    NotFound:
+      description: Запрошенный объект Person не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            status: 404
+            error: Not Found
+            message: Person with id 100 not found
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Person:
+      type: object
+      required:
+        - id
+        - name
+        - coordinates
+        - creationDate
+        - height
+        - nationality
+        - hairColor
+        - eyeColor
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          readOnly: true
+          description: Уникальный идентификатор. Генерируется сервером автоматически.
+          example: 1
+        name:
+          type: string
+          minLength: 1
+          description: Имя человека. Не может быть null или пустой строкой.
+          example: Andrey
+        coordinates:
+          $ref: '#/components/schemas/Coordinates'
+        creationDate:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Дата создания объекта. Генерируется сервером автоматически.
+          example: '2026-09-19T19:30:00+03:00'
+        height:
+          type: integer
+          minimum: 1
+          description: Рост. Значение должно быть больше 0.
+          example: 178
+        birthday:
+          type: string
+          format: date
+          nullable: true
+          description: Дата рождения. Поле может быть null.
+          example: '2006-01-01'
+        weight:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Вес. Поле может быть null; при наличии значение должно быть больше 0.
+          example: 83
+        nationality:
+          $ref: '#/components/schemas/Country'
+        hairColor:
+          allOf:
+            - $ref: '#/components/schemas/Color'
+          description: Цвет волос.
+        eyeColor:
+          allOf:
+            - $ref: '#/components/schemas/Color'
+          description: Цвет глаз.
+        location:
+          allOf:
+            - $ref: '#/components/schemas/Location'
+          nullable: true
+          description: Местоположение. Поле может быть null.
+    PersonInput:
+      type: object
+      required:
+        - name
+        - coordinates
+        - height
+        - nationality
+        - hairColor
+        - eyeColor
+      properties:
+        name:
+          type: string
+          minLength: 1
+          example: Andrey
+        coordinates:
+          $ref: '#/components/schemas/Coordinates'
+        height:
+          type: integer
+          minimum: 1
+          example: 178
+        birthday:
+          type: string
+          format: date
+          nullable: true
+          example: '2006-01-01'
+        weight:
+          type: integer
+          minimum: 1
+          nullable: true
+          example: 83
+        nationality:
+          $ref: '#/components/schemas/Country'
+        hairColor:
+          $ref: '#/components/schemas/Color'
+        eyeColor:
+          $ref: '#/components/schemas/Color'
+        location:
+          allOf:
+            - $ref: '#/components/schemas/Location'
+          nullable: true
+    Coordinates:
+      type: object
+      required:
+        - x
+        - y
+      properties:
+        x:
+          type: number
+          nullable: false
+          description: Координата X. Поле не может быть null.
+          example: 10.5
+        y:
+          type: integer
+          nullable: false
+          description: Координата Y. Поле не может быть null.
+          example: 20
+    Location:
+      type: object
+      required:
+        - x
+        - y
+      properties:
+        x:
+          type: integer
+          example: 10
+        y:
+          type: integer
+          example: 20
+        name:
+          type: string
+          minLength: 1
+          nullable: true
+          description: Название места. Поле может быть null, но не может быть пустой строкой.
+          example: Saint Petersburg
+    Country:
+      type: string
+      description: Национальность
+      enum:
+        - SPAIN
+        - CHINA
+        - VATICAN
+        - NORTH_KOREA
+      example: SPAIN
+    Color:
+      type: string
+      description: Цвет волос или глаз.
+      enum:
+        - GREEN
+        - RED
+        - BLACK
+        - BLUE
+        - YELLOW
+        - WHITE
+        - BROWN
+      example: BLACK
+    PersonListResponse:
+      type: object
+      required:
+        - items
+        - nextoffset
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Person'
+        nextoffset:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 'Смещение для следующего запроса. Его следует передать в параметре offset,
+
+            чтобы получить следующую порцию данных. Если следующей порции нет, значение равно null.'
+          example: 20
+    CountResponse:
+      type: object
+      required:
+        - count
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          example: 12
+    Error:
+      type: object
+      required:
+        - status
+        - error
+        - message
+      properties:
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Invalid request data

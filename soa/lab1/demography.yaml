@@ -1,0 +1,147 @@
+openapi: 3.0.3
+info:
+  title: Demography API
+  version: 1.0.0
+  description: 'REST API второго веб-сервиса для выполнения демографических операций.
+
+
+    Сервис расположен по префиксу /demography и выполняет агрегирующие операции, используя API сервиса Person.'
+servers:
+  - url: https://helios.cs.ifmo.ru/408951/api
+    description: Helios server
+  - url: http://localhost:8080
+    description: Local server
+paths:
+  /demography/hair-color/{hair-color}:
+    get:
+      summary: Получить количество людей с заданным цветом волос
+      description: Возвращает количество людей с заданным цветом волос, данные о людях находятся в сервисе Person
+      operationId: countPersonsByHairColor
+      parameters:
+        - name: hair-color
+          in: path
+          required: true
+          description: Цвет волос
+          schema:
+            $ref: '#/components/schemas/Color'
+      responses:
+        '200':
+          description: Количество людей успешно вычислено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResponse'
+              example:
+                count: 25
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /demography/nationality/{nationality}/eye-color/{eye-color}:
+    get:
+      summary: Получить количество людей по национальности и цвету глаз
+      description: Возвращает количество людей с заданным цветом глаз и национальностью, данные о людях находятся в сервисе Person
+      operationId: countPersonsByNationalityAndEyeColor
+      parameters:
+        - name: nationality
+          in: path
+          required: true
+          description: Национальность
+          schema:
+            $ref: '#/components/schemas/Country'
+        - name: eye-color
+          in: path
+          required: true
+          description: Цвет глаз
+          schema:
+            $ref: '#/components/schemas/Color'
+      responses:
+        '200':
+          description: Количество людей успешно вычислено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResponse'
+              example:
+                count: 7
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  responses:
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            status: 400
+            error: Bad Request
+            message: invalid hair-color value
+    BadGateway:
+      description: Не удалось получить корректный ответ от сервиса Person.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Country:
+      type: string
+      description: Национальность
+      enum:
+        - SPAIN
+        - CHINA
+        - VATICAN
+        - NORTH_KOREA
+      example: SPAIN
+    Color:
+      type: string
+      description: Цвет волос или глаз.
+      enum:
+        - GREEN
+        - RED
+        - BLACK
+        - BLUE
+        - YELLOW
+        - WHITE
+        - BROWN
+      example: BLACK
+    CountResponse:
+      type: object
+      required:
+        - count
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          example: 12
+    Error:
+      type: object
+      required:
+        - status
+        - error
+        - message
+      properties:
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Invalid request data
+
+  
