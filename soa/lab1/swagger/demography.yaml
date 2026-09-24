@@ -11,9 +11,14 @@ servers:
     description: Helios server
   - url: http://localhost:8080
     description: Local server
+tags:
+  - name: Demography
+    description: Демографические операции
 paths:
   /demography/hair-color/{hair-color}:
     get:
+      tags:
+        - Demography
       summary: Получить количество людей с заданным цветом волос
       description: Возвращает количество людей с заданным цветом волос, данные о людях находятся в сервисе Person
       operationId: countPersonsByHairColor
@@ -41,6 +46,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
   /demography/nationality/{nationality}/eye-color/{eye-color}:
     get:
+      tags:
+        - Demography
       summary: Получить количество людей по национальности и цвету глаз
       description: Возвращает количество людей с заданным цветом глаз и национальностью, данные о людях находятся в сервисе Person
       operationId: countPersonsByNationalityAndEyeColor

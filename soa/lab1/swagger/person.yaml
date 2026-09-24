@@ -11,9 +11,17 @@ servers:
     description: Helios server
   - url: http://localhost:8080
     description: Local server
+tags:
+  - name: Persons
+    description: Управление коллекцией Person
+
+  - name: Person special operations
+    description: Дополнительные операции над Person
 paths:
   /persons:
     get:
+      tags:
+        - Persons
       summary: Получить список людей
       description: 'Возвращает список объектов Person.
 
@@ -83,6 +91,8 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
     post:
+      tags:
+        - Persons
       summary: Добавить нового человека
       description: 'Создаёт новый объект Person в коллекции.
 
@@ -133,6 +143,8 @@ paths:
     parameters:
       - $ref: '#/components/parameters/PersonId'
     get:
+      tags:
+        - Persons
       summary: Получить человека по идентификатору
       description: Возвращает объект Person с указанным уникальным идентификатором.
       operationId: getPersonById
@@ -150,6 +162,8 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
     put:
+      tags:
+        - Persons
       summary: Обновить человека
       description: 'Полностью обновляет изменяемые поля объекта Person с указанным id.
 
@@ -175,6 +189,8 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
     delete:
+      tags:
+        - Persons
       summary: Удалить человека
       description: Удаляет объект Person с указанным id из коллекции.
       operationId: deletePerson
@@ -189,8 +205,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
   /persons/max-weight:
     get:
+      tags:
+        - Person special operations
       summary: Получить человека с максимальным весом
-      description: Возвращает один произвольный объект Person, значение поля weight которого является максимальным среди всех объектов коллекции.
+      description: 'Возвращает один произвольный объект Person, значение поля weight которого является максимальным среди всех объектов коллекции.
 
         Объекты, у которых weight равен null, не участвуют в сравнении.'
       operationId: getPersonWithMaxWeight
@@ -211,6 +229,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
   /persons/count-by-birthday:
     get:
+      tags:
+        - Person special operations
       summary: Посчитать людей с birthday больше заданного
       description: Возвращает количество объектов Person, у которых значение birthday позже переданного значения. Объекты с birthday = null не учитываются.
       operationId: countPersonsByBirthdayGreaterThan
@@ -238,6 +258,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
   /persons/search-by-name:
     get:
+      tags:
+        - Person special operations
       summary: Найти людей по подстроке имени
       description: Возвращает массив объектов Person, значение поля name которых содержит переданную подстроку.
       operationId: findPersonsByNameSubstring
