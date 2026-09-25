@@ -7,7 +7,7 @@ info:
 
     Сервис расположен по префиксу /demography и выполняет агрегирующие операции, используя API сервиса Person.'
 servers:
-  - url: https://helios.cs.ifmo.ru/408951/api
+  - url: https://se.ifmo.ru/~408951/api
     description: Helios server
   - url: http://localhost:8080
     description: Local server
@@ -97,12 +97,30 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            status: 502
+            error: BadGateway
+            message: Не удалось получить корректный ответ от сервиса Person.
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            status: 404
+            error: Not Found
+            message: Person with id 100 not found
     InternalServerError:
       description: Внутренняя ошибка сервера
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            status: 500
+            error: InternalServerError
+            message: Внутренняя ошибка сервера
   schemas:
     Country:
       type: string

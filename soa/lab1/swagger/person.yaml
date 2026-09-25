@@ -7,7 +7,7 @@ info:
 
     Сервис предоставляет CRUD-операции, фильтрацию, сортировку, пагинацию и специальные операции над коллекцией Person.'
 servers:
-  - url: https://helios.cs.ifmo.ru/408951/api
+  - url: https://se.ifmo.ru/~408951/api
     description: Helios server
   - url: http://localhost:8080
     description: Local server
@@ -90,6 +90,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
     post:
       tags:
         - Persons
@@ -139,6 +141,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /persons/{id}:
     parameters:
       - $ref: '#/components/parameters/PersonId'
@@ -161,6 +165,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
     put:
       tags:
         - Persons
@@ -188,6 +194,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
     delete:
       tags:
         - Persons
@@ -203,6 +211,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /persons/max-weight:
     get:
       tags:
@@ -225,8 +235,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                status: 404
+                error: Not Found
+                message: Объект Person с заданным weight не найден
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /persons/count-by-birthday:
     get:
       tags:
@@ -256,6 +272,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /persons/search-by-name:
     get:
       tags:
@@ -304,6 +322,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 components:
   parameters:
     PersonId:
@@ -473,7 +493,7 @@ components:
             error: Bad Request
             message: height must be greater than 0
     NotFound:
-      description: Запрошенный объект Person не найден
+      description: Объект не найден
       content:
         application/json:
           schema:
@@ -481,13 +501,27 @@ components:
           example:
             status: 404
             error: Not Found
-            message: Person with id 100 not found
+            message: Объект Person не найден
+    ServiceUnavailable:
+      description: Сервис временно недоступен
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            status: 503
+            error: Service Unavailable
+            message: Service is temporarily unavailable
     InternalServerError:
       description: Внутренняя ошибка сервера
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            status: 500
+            error: InternalServerError
+            message: Внутренняя ошибка сервера
   schemas:
     Person:
       type: object
