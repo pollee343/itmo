@@ -44,6 +44,10 @@ paths:
           $ref: '#/components/responses/BadGateway'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
   /demography/nationality/{nationality}/eye-color/{eye-color}:
     get:
       tags:
@@ -79,6 +83,10 @@ paths:
           $ref: '#/components/responses/BadGateway'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 components:
   responses:
     BadRequest:
@@ -99,10 +107,11 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             status: 502
-            error: BadGateway
+            error: Bad Gateway
+            code: UPSTREAM_INVALID_RESPONSE
             message: Не удалось получить корректный ответ от сервиса Person.
-    NotFound:
-      description: Ресурс не найден
+    ResourceNotFound:
+      description: Маршрут не найден. Возвращается общим обработчиком для неизвестных URL.
       content:
         application/json:
           schema:
