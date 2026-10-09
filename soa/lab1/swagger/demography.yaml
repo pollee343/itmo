@@ -42,6 +42,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '502':
           $ref: '#/components/responses/BadGateway'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '503':
@@ -81,6 +83,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '502':
           $ref: '#/components/responses/BadGateway'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '503':
@@ -98,6 +102,7 @@ components:
           example:
             status: 400
             error: Bad Request
+            code: INVALID_REQUEST
             message: invalid hair-color value
     BadGateway:
       description: Не удалось получить корректный ответ от сервиса Person.
@@ -111,15 +116,48 @@ components:
             code: UPSTREAM_INVALID_RESPONSE
             message: Не удалось получить корректный ответ от сервиса Person.
     ResourceNotFound:
-      description: Маршрут не найден. Возвращается общим обработчиком для неизвестных URL.
+      description: >-
+        Ресурс по запрошенному URL не найден на сервере (например, API не развёрнуто по указанному адресу).
+        Ответ приложения имеет формат JSON; веб-сервер может вернуть HTML-страницу 404.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            resourceNotFound:
+              summary: Ресурс (URL) не найден
+              value:
+                status: 404
+                error: Not Found
+                code: RESOURCE_NOT_FOUND
+                message: Ресурс по запрошенному URL не найден на сервере
+        text/html:
+          schema:
+            type: string
+          examples:
+            resourceNotFound:
+              summary: Ресурс не найден — HTML-ответ веб-сервера
+              value: '<!DOCTYPE html><html><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested URL was not found on this server.</p></body></html>'
+    MethodNotAllowed:
+      headers:
+        Allow:
+          description: >-
+            Обязательный список фактически разрешённых HTTP-методов для запрошенного
+            маршрута через запятую. Пример приведён для маршрута только с GET;
+            HEAD и OPTIONS добавляются, если сервер их поддерживает.
+          required: true
+          schema:
+            type: string
+          example: GET
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
           example:
-            status: 404
-            error: Not Found
-            message: Person with id 100 not found
+            status: 405
+            error: Method Not Allowed
+            code: METHOD_NOT_ALLOWED
+            message: HTTP-метод не поддерживается для данного маршрута
     InternalServerError:
       description: Внутренняя ошибка сервера
       content:
@@ -128,8 +166,37 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             status: 500
-            error: InternalServerError
+            error: Internal Server Error
+            code: INTERNAL_ERROR
             message: Внутренняя ошибка сервера
+    ServiceUnavailable:
+      description: Сервис временно недоступен из-за перегрузки, обслуживания или недоступности необходимой зависимости (например, БД).
+      headers:
+        Retry-After:
+          description: Необязательное время ожидания перед повторным запросом в секундах или в формате HTTP-date.
+          schema:
+            type: string
+          example: '60'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            status: 503
+            error: Service Unavailable
+            code: SERVICE_UNAVAILABLE
+            message: Сервис временно недоступен. Повторите запрос позже.
+    GatewayTimeout:
+      description: Время ожидания ответа от сервиса Person истекло
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            status: 504
+            error: Gateway Timeout
+            code: UPSTREAM_TIMEOUT
+            message: Сервис Person не ответил за отведённое время
   schemas:
     Country:
       type: string
@@ -166,6 +233,7 @@ components:
       required:
         - status
         - error
+        - code
         - message
       properties:
         status:
@@ -174,6 +242,10 @@ components:
         error:
           type: string
           example: Bad Request
+        code:
+          type: string
+          description: Машинный код причины ошибки, позволяющий различать ошибки с одинаковым HTTP-статусом.
+          example: INVALID_REQUEST
         message:
           type: string
           example: Invalid request data
