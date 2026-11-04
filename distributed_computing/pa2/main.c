@@ -174,9 +174,12 @@ static int fill_history(
     {
         int i = history->s_history_len;
 
+        if (i <= time)
+    {
         history->s_history[i] = history->s_history[i - 1];
         history->s_history[i].s_time = (timestamp_t)i;
         history->s_history_len++;
+    }
     }
 
     return 0;
@@ -245,7 +248,9 @@ static int process_transfer(
 
     if (context->id == order.s_src)
     {
-        *balance = *balance - order.s_amount;
+        int old_balance = *balance;
+        int new_balance = old_balance - order.s_amount;
+        *balance = new_balance;
         history->s_history[time].s_balance = *balance;
 
         text_size = snprintf(
@@ -286,6 +291,7 @@ static int process_transfer(
             return -1;
         }
 
+        memset(message, 0, sizeof(*message));
         prepare_message(message, ACK, 0);
 
         return send(context, PARENT_ID, message);
@@ -314,6 +320,8 @@ static int run_child(
     history.s_history[0].s_balance = balance;
 
     time = get_physical_time();
+
+    memset(&message, 0, sizeof(message));
 
     text_size = snprintf(
         message.s_payload,
@@ -382,6 +390,8 @@ static int run_child(
             {
                 return -1;
             }
+
+            memset(&message, 0, sizeof(message));
 
             text_size = snprintf(
                 message.s_payload,
@@ -452,6 +462,7 @@ static int run_parent(ProcessContext *context)
         return -1;
     }
 
+    memset(&message, 0, sizeof(message));
     prepare_message(&message, STOP, 0);
 
     if (send_multicast(context, &message) != 0 ||
@@ -586,54 +597,6 @@ static int parse_number(const char *text, int maximum)
     return value;
 }
 
-static int create_pipes(
-    ProcessContext *context,
-    int pipes_file)
-{
-    int from;
-    int to;
-
-    for (from = 0; from < context->process_count; from++)
-    {
-        for (to = 0; to < context->process_count; to++)
-        {
-            char text[128];
-            int text_size;
-
-            if (from == to)
-            {
-                continue;
-            }
-
-            if (pipe(context->pipes[from][to]) != 0)
-            {
-                return -1;
-            }
-
-            text_size = snprintf(
-                text,
-                sizeof(text),
-                "pipe %d -> %d: read=%d write=%d\n",
-                from,
-                to,
-                context->pipes[from][to][0],
-                context->pipes[from][to][1]);
-
-            if (text_size < 0 || (size_t)text_size >= sizeof(text))
-            {
-                return -1;
-            }
-
-            if (write_text(pipes_file, text, (size_t)text_size) != 0)
-            {
-                return -1;
-            }
-        }
-    }
-
-    return 0;
-}
-
 int main(int argc, char *argv[])
 {
     ProcessContext context;
@@ -740,6 +703,39 @@ int main(int argc, char *argv[])
                     created_children,
                     -1);
             }
+
+            int end;
+
+            for (end = 0; end < 2; end++)
+			{
+    			int fd;
+    			int flags;
+
+    			fd = context.pipes[from][to][end];
+    			flags = fcntl(fd, F_GETFL);
+
+    			if (flags == -1)
+    			{
+        			return clean_program(
+            		&context,
+            		events_file,
+            		pipes_file,
+            		children_pids,
+            		created_children,
+            		-1);
+    			}
+
+                if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+    			{
+        			return clean_program(
+            		&context,
+            		events_file,
+            		pipes_file,
+            		children_pids,
+            		created_children,
+            		-1);
+    			}
+			}
 
             text_size = snprintf(
                 text,
