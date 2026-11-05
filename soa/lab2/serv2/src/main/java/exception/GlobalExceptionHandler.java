@@ -1,16 +1,12 @@
 package exception;
 
 import http.ErrorResponse;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
-
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -25,7 +21,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNotFound(NoHandlerFoundException exception) {
+    public ResponseEntity<ErrorResponse> handleNotFound() {
         return build(
                 HttpStatus.NOT_FOUND,
                 "RESOURCE_NOT_FOUND",
@@ -35,32 +31,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotAllowed(
-            HttpRequestMethodNotSupportedException exception
     ) {
-        HttpHeaders headers = new HttpHeaders();
-
-        Set<org.springframework.http.HttpMethod> supportedMethods = exception.getSupportedHttpMethods();
-        if (supportedMethods != null && !supportedMethods.isEmpty()) {
-            String allow = supportedMethods.stream()
-                    .map(Enum::name)
-                    .sorted()
-                    .collect(Collectors.joining(", "));
-
-            headers.add(HttpHeaders.ALLOW, allow);
-        }
-
-        ErrorResponse body = new ErrorResponse(
-                HttpStatus.METHOD_NOT_ALLOWED.value(),
-                HttpStatus.METHOD_NOT_ALLOWED.getReasonPhrase(),
+        return build(
+                HttpStatus.METHOD_NOT_ALLOWED,
                 "METHOD_NOT_ALLOWED",
                 "HTTP-метод не поддерживается для данного маршрута"
         );
-
-        return new ResponseEntity<>(body, headers, HttpStatus.METHOD_NOT_ALLOWED);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleUnexpectedException(Exception exception) {
+    public ResponseEntity<ErrorResponse> handleUnexpectedException() {
         return build(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_ERROR",

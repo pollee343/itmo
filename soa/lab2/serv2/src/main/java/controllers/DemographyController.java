@@ -12,8 +12,6 @@ import http.CountResponse;
 import model.Color;
 import model.Country;
 
-import java.util.Locale;
-
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @RestController
@@ -27,7 +25,7 @@ public class DemographyController {
     public ResponseEntity<CountResponse> countPersonsByHairColor(
             @PathVariable("hair-color") String hairColorValue
     ) {
-        Color hairColor = parseColor(hairColorValue, "hair-color");
+        Color hairColor = parseColor(hairColorValue);
 
         return ResponseEntity.ok(
                 demographyService.countPersonsByHairColor(hairColor)
@@ -40,28 +38,28 @@ public class DemographyController {
             @PathVariable("eye-color") String eyeColorValue
     ) {
         Country nationality = parseCountry(nationalityValue);
-        Color eyeColor = parseColor(eyeColorValue, "eye-color");
+        Color eyeColor = parseColor(eyeColorValue);
 
         return ResponseEntity.ok(
                 demographyService.countPersonsByNationalityAndEyeColor(nationality, eyeColor)
         );
     }
 
-    private Color parseColor(String value, String parameterName) {
+    public Color parseColor(String value) {
         try {
-            return Color.valueOf(value.toUpperCase(Locale.ROOT));
+            return Color.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException | NullPointerException e) {
             throw new ApiException(
                     BAD_REQUEST,
                     "INVALID_REQUEST",
-                    "invalid " + parameterName + " value"
+                    "invalid color value"
             );
         }
     }
 
     private Country parseCountry(String value) {
         try {
-            return Country.valueOf(value.toUpperCase(Locale.ROOT));
+            return Country.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException | NullPointerException e) {
             throw new ApiException(
                     BAD_REQUEST,
