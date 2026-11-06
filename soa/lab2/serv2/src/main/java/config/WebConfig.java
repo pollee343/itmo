@@ -34,7 +34,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/demography/**")
-                .allowedOrigins(frontendOrigin)
+                .allowedOrigins(frontendOrigin, "https://localhost:18081")
                 .allowedMethods("GET", "OPTIONS")
                 .allowedHeaders("Accept", "Content-Type")
                 .maxAge(3600);
@@ -51,20 +51,20 @@ public class WebConfig implements WebMvcConfigurer {
             @Value("${person.service.trust-store-password:}") String trustStorePassword
     ) throws GeneralSecurityException, IOException {
         final SSLContext sslContext;
-        if (trustStorePath.isBlank()) {
-            sslContext = SSLContext.getDefault();
-        } else {
-            KeyStore trustStore = KeyStore.getInstance("PKCS12");
-            try (InputStream stream = Files.newInputStream(Path.of(trustStorePath))) {
-                trustStore.load(stream, trustStorePassword.toCharArray());
-            }
-
-            TrustManagerFactory managers = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            managers.init(trustStore);
-            sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, managers.getTrustManagers(), null);
+        KeyStore trustStore = KeyStore.getInstance("PKCS12");
+        try (InputStream stream = Files.newInputStream(Path.of(trustStorePath))) {
+            trustStore.load(stream, trustStorePassword.toCharArray());
         }
 
+        TrustManagerFactory managers = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        managers.init(trustStore);
+        sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, managers.getTrustManagers(), null);
+
+        return new RestTemplate(getSimpleClientHttpRequestFactory(sslContext));
+    }
+
+    private static SimpleClientHttpRequestFactory getSimpleClientHttpRequestFactory(SSLContext sslContext) {
         var requestFactory = new SimpleClientHttpRequestFactory() {
             protected void prepareConnection(HttpURLConnection connection, String method) throws IOException {
                 super.prepareConnection(connection, method);
@@ -76,6 +76,6 @@ public class WebConfig implements WebMvcConfigurer {
         };
         requestFactory.setConnectTimeout(5_000);
         requestFactory.setReadTimeout(10_000);
-        return new RestTemplate(requestFactory);
+        return requestFactory;
     }
 }
