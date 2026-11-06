@@ -232,6 +232,7 @@ static int process_transfer(
 {
     TransferOrder order;
     timestamp_t time;
+    timestamp_t send_time;
     char text[MAX_PAYLOAD_LEN];
     int text_size;
 
@@ -241,18 +242,18 @@ static int process_transfer(
     }
 
     memcpy(&order, message->s_payload, sizeof(order));
-    time = get_physical_time();
-
-    if (fill_history(history, time) != 0)
-    {
-        return -1;
-    }
 
     if (context->id == order.s_src)
     {
-        int old_balance = *balance;
-        int new_balance = old_balance - order.s_amount;
-        *balance = new_balance;
+        prepare_message(message, TRANSFER, sizeof(order));
+        time = message->s_header.s_local_time;
+
+        if (fill_history(history, time) != 0)
+        {
+            return -1;
+        }
+
+        *balance = *balance - order.s_amount;
         history->s_history[time].s_balance = *balance;
 
         text_size = snprintf(
@@ -269,13 +270,27 @@ static int process_transfer(
             return -1;
         }
 
-        message->s_header.s_local_time = time;
-
         return send(context, order.s_dst, message);
     }
 
     if (context->id == order.s_dst)
     {
+        timestamp_t i;
+
+        send_time = message->s_header.s_local_time;
+        time = get_lamport_time();
+
+        if (fill_history(history, time) != 0)
+        {
+            return -1;
+        }
+
+        for (i = send_time; i < time; i++)
+        {
+            history->s_history[i].s_balance_pending_in +=
+                order.s_amount;
+        }
+
         *balance = *balance + order.s_amount;
         history->s_history[time].s_balance = *balance;
 
@@ -321,9 +336,9 @@ static int run_child(
     history.s_history_len = 1;
     history.s_history[0].s_balance = balance;
 
-    time = get_physical_time();
-
     memset(&message, 0, sizeof(message));
+    prepare_message(&message, STARTED, 0);
+    time = message.s_header.s_local_time;
 
     text_size = snprintf(
         message.s_payload,
@@ -340,7 +355,7 @@ static int run_child(
         return -1;
     }
 
-    prepare_message(&message, STARTED, text_size);
+    message.s_header.s_payload_len = (uint16_t)text_size;
 
     if (send_multicast(context, &message) != 0 ||
         wait_for_messages(context, STARTED) != 0)
@@ -352,7 +367,7 @@ static int run_child(
         message.s_payload,
         sizeof(message.s_payload),
         log_received_all_started_fmt,
-        (int)get_physical_time(),
+        (int)get_lamport_time(),
         (int)context->id);
 
     if (print_log(events_file, message.s_payload, text_size) != 0)
@@ -386,14 +401,15 @@ static int run_child(
         else if (message.s_header.s_type == STOP && !stopped)
         {
             stopped = 1;
-            time = get_physical_time();
+
+            memset(&message, 0, sizeof(message));
+            prepare_message(&message, DONE, 0);
+            time = message.s_header.s_local_time;
 
             if (fill_history(&history, time) != 0)
             {
                 return -1;
             }
-
-            memset(&message, 0, sizeof(message));
 
             text_size = snprintf(
                 message.s_payload,
@@ -411,7 +427,7 @@ static int run_child(
                 return -1;
             }
 
-            prepare_message(&message, DONE, text_size);
+            message.s_header.s_payload_len = (uint16_t)text_size;
 
             if (send_multicast(context, &message) != 0)
             {
@@ -428,10 +444,18 @@ static int run_child(
         message.s_payload,
         sizeof(message.s_payload),
         log_received_all_done_fmt,
-        (int)get_physical_time(),
+        (int)get_lamport_time(),
         (int)context->id);
 
     if (print_log(events_file, message.s_payload, text_size) != 0)
+    {
+        return -1;
+    }
+
+    prepare_message(&message, BALANCE_HISTORY, 0);
+    time = message.s_header.s_local_time;
+
+    if (fill_history(&history, time) != 0)
     {
         return -1;
     }
@@ -440,7 +464,7 @@ static int run_child(
                    history.s_history_len * sizeof(BalanceState);
 
     memcpy(message.s_payload, &history, (size_t)history_size);
-    prepare_message(&message, BALANCE_HISTORY, history_size);
+    message.s_header.s_payload_len = (uint16_t)history_size;
 
     return send(context, PARENT_ID, &message);
 }
